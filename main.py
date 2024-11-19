@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, simpledialog
+from tkinter import ttk, filedialog, simpledialog, messagebox
 from pygments import lex
 from pygments.lexers import PythonLexer
 import subprocess
@@ -41,7 +41,6 @@ current_theme = "light"  # Default theme
 def switch_theme():
     """Switch between Light and Dark themes."""
     global current_theme
-    # Toggle between themes
     current_theme = "dark" if current_theme == "light" else "light"
     theme = themes[current_theme]
 
@@ -70,6 +69,18 @@ def get_current_text_widget():
     current_tab = notebook.nametowidget(notebook.select())
     return current_tab.winfo_children()[0]
 
+def close_tab():
+    """Close the currently selected tab."""
+    if len(notebook.tabs()) == 1:
+        messagebox.showerror("Error", "Cannot close the last tab!")
+        return
+    current_tab = notebook.select()
+    current_text_widget = get_current_text_widget()
+    if current_text_widget.edit_modified():  # Check for unsaved changes
+        if not messagebox.askyesno("Unsaved Changes", "You have unsaved changes. Close without saving?"):
+            return
+    notebook.forget(current_tab)
+
 # Initialize with a default tab
 text_area = add_tab()
 
@@ -89,6 +100,7 @@ def save_file():
         with open(file_path, 'w') as file:
             file.write(current_text_widget.get(1.0, tk.END))
         notebook.tab(notebook.select(), text=file_path.split("/")[-1])
+        current_text_widget.edit_modified(False)
 
 def auto_save():
     """Automatically save the file at regular intervals."""
@@ -177,8 +189,11 @@ menu = tk.Menu(root)
 root.config(menu=menu)
 
 file_menu = tk.Menu(menu, tearoff=0)
+file_menu.add_command(label="New Tab", command=add_tab)
 file_menu.add_command(label="Open", command=open_file)
 file_menu.add_command(label="Save", command=save_file)
+file_menu.add_separator()
+file_menu.add_command(label="Close Tab", command=close_tab)
 file_menu.add_separator()
 file_menu.add_command(label="Exit", command=root.quit)
 menu.add_cascade(label="File", menu=file_menu)
@@ -186,7 +201,7 @@ menu.add_cascade(label="File", menu=file_menu)
 edit_menu = tk.Menu(menu, tearoff=0)
 edit_menu.add_command(label="Find", command=find_text)
 edit_menu.add_command(label="Replace", command=replace_text)
-edit_menu.add_command(label="Switch Theme (Light/Dark)", command=switch_theme)  # Theme switcher
+edit_menu.add_command(label="Switch Theme (Light/Dark)", command=switch_theme)
 menu.add_cascade(label="Edit", menu=edit_menu)
 
 run_menu = tk.Menu(menu, tearoff=0)

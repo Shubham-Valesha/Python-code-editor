@@ -21,16 +21,49 @@ console_frame.pack(fill="x", side="bottom")
 console_output = tk.Text(console_frame, height=10, bg="#1e1e1e", fg="#d3d3d3", wrap="word", state="disabled")
 console_output.pack(fill="x", side="bottom")
 
+# Theme configurations
+themes = {
+    "light": {
+        "bg": "#ffffff",  # White background
+        "fg": "#000000",  # Black text
+        "cursor": "#000000",  # Black cursor
+    },
+    "dark": {
+        "bg": "#000000",  # Pitch black background
+        "fg": "#ffffff",  # White text
+        "cursor": "#ffffff",  # White cursor
+    },
+}
+
+current_theme = "light"  # Default theme
+
+# Theme switching function
+def switch_theme():
+    """Switch between Light and Dark themes."""
+    global current_theme
+    # Toggle between themes
+    current_theme = "dark" if current_theme == "light" else "light"
+    theme = themes[current_theme]
+
+    # Apply theme to all open tabs
+    for tab in notebook.tabs():
+        text_widget = notebook.nametowidget(tab).winfo_children()[0]
+        text_widget.config(bg=theme["bg"], fg=theme["fg"], insertbackground=theme["cursor"])
+
+    # Update console output theme
+    console_output.config(bg=theme["bg"], fg=theme["fg"])
+
 # Functions for Tabs and Text Widgets
 def add_tab(filename="Untitled"):
     """Add a new tab with a text area."""
     tab = tk.Frame(notebook)
     notebook.add(tab, text=filename)
-    text_widget = tk.Text(tab, wrap="word", font=("Consolas", 12), undo=True, bg="#ffffff", fg="#000000")
+    text_widget = tk.Text(tab, wrap="word", font=("Consolas", 12), undo=True,
+                          bg=themes[current_theme]["bg"], fg=themes[current_theme]["fg"],
+                          insertbackground=themes[current_theme]["cursor"])
     text_widget.pack(expand=1, fill="both")
     notebook.select(tab)
     return text_widget
-    
 
 def get_current_text_widget():
     """Get the currently active text widget."""
@@ -153,6 +186,7 @@ menu.add_cascade(label="File", menu=file_menu)
 edit_menu = tk.Menu(menu, tearoff=0)
 edit_menu.add_command(label="Find", command=find_text)
 edit_menu.add_command(label="Replace", command=replace_text)
+edit_menu.add_command(label="Switch Theme (Light/Dark)", command=switch_theme)  # Theme switcher
 menu.add_cascade(label="Edit", menu=edit_menu)
 
 run_menu = tk.Menu(menu, tearoff=0)
@@ -168,4 +202,3 @@ auto_save()
 
 # Run the main application
 root.mainloop()
-

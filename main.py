@@ -1,101 +1,148 @@
 import tkinter as tk
-from tkinter import filedialog, simpledialog
+from tkinter import ttk, filedialog, simpledialog
 from pygments import lex
 from pygments.lexers import PythonLexer
-from pygments.styles import get_style_by_name
-from pygments.token import Token
+import subprocess
+import os
+import importlib.util
 
-# Create the main window
+# Initialize the main window
 root = tk.Tk()
-root.title("My Code Editor")
-root.geometry("800x600")
+root.title("Advanced Code Editor")
+root.geometry("1000x700")
 
-# Create a frame to hold line numbers and the text area
-frame = tk.Frame(root)
-frame.pack(expand=1, fill="both")
+# Notebook for tabs
+notebook = ttk.Notebook(root)
+notebook.pack(expand=1, fill="both")
 
-# Line numbers canvas
-line_numbers = tk.Canvas(frame, width=40, bg="#f0f0f0")
-line_numbers.pack(side="left", fill="y")
+# Console output frame
+console_frame = tk.Frame(root)
+console_frame.pack(fill="x", side="bottom")
+console_output = tk.Text(console_frame, height=10, bg="#1e1e1e", fg="#d3d3d3", wrap="word", state="disabled")
+console_output.pack(fill="x", side="bottom")
 
-# Create the text area with undo functionality
-text_area = tk.Text(frame, wrap="word", font=("Consolas", 12), undo=True, bg="#ffffff", fg="#000000")
-text_area.pack(side="right", expand=1, fill="both")
+# Functions for Tabs and Text Widgets
+def add_tab(filename="Untitled"):
+    """Add a new tab with a text area."""
+    tab = tk.Frame(notebook)
+    notebook.add(tab, text=filename)
+    text_widget = tk.Text(tab, wrap="word", font=("Consolas", 12), undo=True, bg="#ffffff", fg="#000000")
+    text_widget.pack(expand=1, fill="both")
+    notebook.select(tab)
+    return text_widget
+    
 
-# Define file operations
+def get_current_text_widget():
+    """Get the currently active text widget."""
+    current_tab = notebook.nametowidget(notebook.select())
+    return current_tab.winfo_children()[0]
+
+# Initialize with a default tab
+text_area = add_tab()
+
+# File Operations
 def open_file():
-    file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+    file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt"), ("Python files", "*.py"), ("All files", "*.*")])
     if file_path:
         with open(file_path, 'r') as file:
-            text_area.delete(1.0, tk.END)
-            text_area.insert(1.0, file.read())
+            text_widget = add_tab(file_path.split("/")[-1])
+            text_widget.delete(1.0, tk.END)
+            text_widget.insert(1.0, file.read())
 
 def save_file():
-    file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
+    current_text_widget = get_current_text_widget()
+    file_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt"), ("Python files", "*.py"), ("All files", "*.*")])
     if file_path:
         with open(file_path, 'w') as file:
-            file.write(text_area.get(1.0, tk.END))
+            file.write(current_text_widget.get(1.0, tk.END))
+        notebook.tab(notebook.select(), text=file_path.split("/")[-1])
 
-# Update line numbers dynamically
-def update_line_numbers(event=None):
-    line_numbers.delete("all")
-    i = text_area.index("@0,0")
-    while True:
-        dline = text_area.dlineinfo(i)
-        if dline is None:
-            break
-        y = dline[1]
-        line_number = str(i).split(".")[0]
-        line_numbers.create_text(2, y, anchor="nw", text=line_number, font=("Consolas", 10))
-        i = text_area.index(f"{i}+1line")
+def auto_save():
+    """Automatically save the file at regular intervals."""
+    temp_file = os.path.join(os.getcwd(), "autosave.txt")
+    with open(temp_file, "w") as file:
+        file.write(get_current_text_widget().get(1.0, "end-1c"))
+    root.after(30000, auto_save)
 
-# Syntax highlighting
-def apply_syntax_highlighting(event=None):
-    text = text_area.get("1.0", "end-1c")
-    tokens = lex(text, PythonLexer())
-    text_area.tag_remove("Token", "1.0", "end")
-    for token_type, value in tokens:
-        start = text_area.search(value, "1.0", stopindex="end", nocase=False)
-        if start:
-            end = f"{start}+{len(value)}c"
-            text_area.tag_add(str(token_type), start, end)
-            text_area.tag_config(str(token_type), foreground="#ff5733" if str(token_type) == "Token.Keyword" else "#000000")
+# Search and Replace
+def find_text():
+    search_term = simpledialog.askstring("Find", "Enter text to search:")
+    if search_term:
+        text_widget = get_current_text_widget()
+        text_widget.tag_remove("highlight", "1.0", "end")
+        start = "1.0"
+        while True:
+            start = text_widget.search(search_term, start, stopindex="end")
+            if not start:
+                break
+            end = f"{start}+{len(search_term)}c"
+            text_widget.tag_add("highlight", start, end)
+            start = end
+        text_widget.tag_config("highlight", background="yellow", foreground="black")
 
-# Undo/Redo functionality
-def undo_action():
+def replace_text():
+    search_term = simpledialog.askstring("Find", "Enter text to replace:")
+    replacement = simpledialog.askstring("Replace", "Enter replacement text:")
+    if search_term and replacement:
+        text_widget = get_current_text_widget()
+        content = text_widget.get("1.0", "end-1c")
+        new_content = content.replace(search_term, replacement)
+        text_widget.delete("1.0", "end")
+        text_widget.insert("1.0", new_content)
+
+# Run Code
+def run_code():
+    """Execute the Python code in the current tab."""
+    code = get_current_text_widget().get(1.0, "end-1c")
+    python_command = "python"  # Default command
+
+    # Check if `python3` is needed instead of `python`
     try:
-        text_area.edit_undo()
-    except tk.TclError:
-        pass
+        subprocess.run([python_command, "--version"], capture_output=True, text=True)
+    except FileNotFoundError:
+        python_command = "python3"
 
-def redo_action():
+    # Run the code
     try:
-        text_area.edit_redo()
-    except tk.TclError:
-        pass
+        result = subprocess.run([python_command, "-c", code], capture_output=True, text=True)
+        console_output.config(state="normal")
+        console_output.delete(1.0, tk.END)
+        console_output.insert(tk.END, result.stdout if result.returncode == 0 else result.stderr)
+        console_output.config(state="disabled")
+    except Exception as e:
+        console_output.config(state="normal")
+        console_output.insert(tk.END, f"Error: {e}")
+        console_output.config(state="disabled")
 
-# Theme toggling
-def toggle_theme():
-    if theme_var.get() == "Dark":
-        text_area.config(bg="#2e2e2e", fg="#d3d3d3", insertbackground="#d3d3d3")
-        line_numbers.config(bg="#2e2e2e", fg="#d3d3d3")
-    else:
-        text_area.config(bg="#ffffff", fg="#000000", insertbackground="#000000")
-        line_numbers.config(bg="#f0f0f0", fg="#000000")
+# Auto Indentation
+def auto_indent(event=None):
+    """Automatically indent the next line."""
+    text_widget = get_current_text_widget()
+    current_line = text_widget.get("insert linestart", "insert")
+    indent = len(current_line) - len(current_line.lstrip())
+    text_widget.insert("insert", "\n" + " " * indent)
+    return "break"
 
-# Font customization
-def set_font():
-    font_family = simpledialog.askstring("Font", "Enter Font Family (e.g., Consolas):", initialvalue="Consolas")
-    font_size = simpledialog.askinteger("Font Size", "Enter Font Size:", initialvalue=12)
-    if font_family and font_size:
-        text_area.config(font=(font_family, font_size))
-        line_numbers.config(font=(font_family, font_size))
+text_area.bind("<Return>", auto_indent)
 
-# Create the menu bar
+# Plugins Support
+def load_plugin(plugin_path):
+    """Load a Python plugin dynamically."""
+    spec = importlib.util.spec_from_file_location("plugin", plugin_path)
+    plugin = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(plugin)
+    plugin.add_to_editor(root, notebook, get_current_text_widget(), console_output)
+
+def load_plugins():
+    """Open file dialog to select a plugin."""
+    plugin_path = filedialog.askopenfilename(filetypes=[("Python files", "*.py")])
+    if plugin_path:
+        load_plugin(plugin_path)
+
+# Menu Setup
 menu = tk.Menu(root)
 root.config(menu=menu)
 
-# File menu
 file_menu = tk.Menu(menu, tearoff=0)
 file_menu.add_command(label="Open", command=open_file)
 file_menu.add_command(label="Save", command=save_file)
@@ -103,81 +150,22 @@ file_menu.add_separator()
 file_menu.add_command(label="Exit", command=root.quit)
 menu.add_cascade(label="File", menu=file_menu)
 
-# Edit menu
 edit_menu = tk.Menu(menu, tearoff=0)
-edit_menu.add_command(label="Undo", command=undo_action)
-edit_menu.add_command(label="Redo", command=redo_action)
-menu.add_cascade(label="Edit", menu=edit_menu)
-
-# Theme menu
-theme_var = tk.StringVar(value="Light")
-theme_menu = tk.Menu(menu, tearoff=0)
-theme_menu.add_radiobutton(label="Light", variable=theme_var, value="Light", command=toggle_theme)
-theme_menu.add_radiobutton(label="Dark", variable=theme_var, value="Dark", command=toggle_theme)
-menu.add_cascade(label="Theme", menu=theme_menu)
-
-# Font menu
-font_menu = tk.Menu(menu, tearoff=0)
-font_menu.add_command(label="Set Font", command=set_font)
-menu.add_cascade(label="Font", menu=font_menu)
-
-# Bindings
-text_area.bind("<KeyRelease>", lambda event: (update_line_numbers(), apply_syntax_highlighting()))
-
-def find_text():
-    """Open a dialog to find text in the editor."""
-    search_term = simpledialog.askstring("Find", "Enter text to search:")
-    if search_term:
-        text_area.tag_remove("highlight", "1.0", "end")
-        start = "1.0"
-        while True:
-            start = text_area.search(search_term, start, stopindex="end")
-            if not start:
-                break
-            end = f"{start}+{len(search_term)}c"
-            text_area.tag_add("highlight", start, end)
-            start = end
-        text_area.tag_config("highlight", background="yellow", foreground="black")
-
-def replace_text():
-    """Open a dialog to replace text in the editor."""
-    search_term = simpledialog.askstring("Find", "Enter text to replace:")
-    replacement = simpledialog.askstring("Replace", "Enter replacement text:")
-    if search_term and replacement:
-        content = text_area.get("1.0", "end-1c")
-        new_content = content.replace(search_term, replacement)
-        text_area.delete("1.0", "end")
-        text_area.insert("1.0", new_content)
-    
-edit_menu.add_separator()
 edit_menu.add_command(label="Find", command=find_text)
 edit_menu.add_command(label="Replace", command=replace_text)
+menu.add_cascade(label="Edit", menu=edit_menu)
 
-import os
+run_menu = tk.Menu(menu, tearoff=0)
+run_menu.add_command(label="Run", command=run_code)
+menu.add_cascade(label="Run", menu=run_menu)
 
-def auto_save():
-    """Automatically save the file at regular intervals."""
-    temp_file = os.path.join(os.getcwd(), "autosave.txt")
-    with open(temp_file, "w") as file:
-        file.write(text_area.get("1.0", "end-1c"))
-    root.after(30000, auto_save)  # Save every 30 seconds
+plugin_menu = tk.Menu(menu, tearoff=0)
+plugin_menu.add_command(label="Load Plugin", command=load_plugins)
+menu.add_cascade(label="Plugins", menu=plugin_menu)
 
+# Initialize autosave
 auto_save()
 
-def update_status_bar(event=None):
-    """Update the word and character count."""
-    content = text_area.get("1.0", "end-1c")
-    words = len(content.split())
-    chars = len(content)
-    status_bar.config(text=f"Words: {words} | Characters: {chars}")
-
-# Add a status bar
-status_bar = tk.Label(root, text="Words: 0 | Characters: 0", anchor="e")
-status_bar.pack(fill="x", side="bottom")
-
-# Bind the update function to key events
-text_area.bind("<KeyRelease>", lambda event: (update_line_numbers(), apply_syntax_highlighting(), update_status_bar()))
-
-
-# Run the application
+# Run the main application
 root.mainloop()
+

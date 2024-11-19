@@ -1,5 +1,5 @@
 # Python code editor
-Features like auto save, find specific word, total word count, edit menu, search and replace, dark and light mode, change font and size of text.
+Features like auto save, find specific word, total word count, edit menu, search and replace, dark and light mode, change font and size of text, added functionality of adding new tabs, managing multiple tabs and closing tabs, execute python code in it's given terminal.
 
 I will add more features like ability to add multiple tabs, compile and run code, and plugins.
 

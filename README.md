@@ -3,8 +3,9 @@ Features like auto save, find specific word, total word count, edit menu, search
 
 I will add more features like ability to add multiple tabs, compile and run code, and plugins.
 
-File Menu: 
-![Screenshot 1946-08-27 at 5 42 53 AM](https://github.com/user-attachments/assets/7fa69577-df30-4771-9d22-ca12f5fb37f6)
+File Menu: ![Screenshot 1946-08-28 at 5 14 20 AM](https://github.com/user-attachments/assets/d574bcc7-1c90-4aaf-88b7-af18238d071a)
+
+
 
 
 Light mode: ![Screenshot 1946-08-28 at 5 13 12 AM](https://github.com/user-attachments/assets/cac50ab6-6063-4fab-a6e5-25858b0d0275)
